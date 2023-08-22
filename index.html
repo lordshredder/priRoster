@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Priconne Roster</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+  #container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px;
+  }
+  #updateButton {
+    margin: 40px 0;
+    background-color: lightgreen;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  #updateButton.disabled {
+    background-color: #ccc; /* Light gray background color for disabled button */
+    cursor: not-allowed;
+  }
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+  }
+  #overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
+  #overlay-content {
+    text-align: center;
+  }
+  #spinner {
+    width: 100px;
+    height: 100px;
+  }
+  #loading-text {
+    color: white; /* Set the text color */
+    font-weight: bold; /* Make the text bold */
+    margin-top: 10px; /* Add some spacing between spinner and text */
+  }
+  .image {
+    width: 128px;
+    height: 128px;
+    margin: 5px;
+    cursor: pointer;
+    transition: filter 0.3s;
+  }
+  .image.darkened {
+    filter: brightness(60%);
+  }
+</style>
+</head>
+<body>
+<div id="overlay">
+  <div id="overlay-content">
+    <img src="load/update.gif" alt="Loading" id="spinner" />
+    <p id="loading-text">Updating...</p>
+  </div>
+</div>
+<div id="container">
+  <button id="updateButton">Update Roster</button>
+  <div id="imageGrid"></div>
+</div>
+<script>
+  const imageFolder = "units"; // Folder containing .jpg image files
+  const imageGrid = document.getElementById("imageGrid");
+  const updateButton = document.getElementById("updateButton");
+  const spinner = document.getElementById("spinner");
+  const id = getParameterByName("id");
+  const uni = getParameterByName("uni");
+  const roster = getParameterByName("roster");
+  var sortedImageNamesString = '';
+  var selectedImages = [];
+  var currentData = [];
+  var modifiedImageNames = [];
+  
+  
+
+  function toggleImageSelection(imageName) {
+    const index = selectedImages.indexOf(imageName);
+    if (index === -1) {
+      selectedImages.push(imageName);
+    } else {
+      selectedImages.splice(index, 1);
+    }
+    updateImageStyles();
+  }
+
+  function updateImageStyles() {
+    const images = document.querySelectorAll(".image");
+    images.forEach(image => {
+      const imageName = image.dataset.name;
+      const isSelected = selectedImages.includes(imageName);
+      image.classList.toggle("darkened", !isSelected);
+    });
+  }
+
+  function createImage(imageName) {
+    const image = new Image();
+    image.src = `${imageFolder}/${imageName}`;
+    image.className = "image";
+    image.dataset.name = imageName;
+    image.addEventListener("click", () => {
+      toggleImageSelection(imageName);
+    });
+    imageGrid.appendChild(image);
+  }
+  
+	  function parseImageString(imageString) {
+		  const imageNumbers = imageString.split(",").map(Number);
+		  const imageNamesArray = imageNumbers.map(number => `${number}.jpg`);
+		  return imageNamesArray;
+	}
+
+
+	function init() {
+  
+		  if (uni) {
+			for (let i = 1; i <= uni; i++) {
+			  const imageName = `${i}.jpg`;
+			  createImage(imageName);
+			}
+		  } else {
+			console.error("uni parameter not found in the URL.");
+		  }
+		  
+		  if(roster){
+		    selectedImages = selectedImages.concat(parseImageString(roster));
+			updateImageStyles();		  
+		  }
+
+    updateButton.addEventListener("click", () => {
+      emptyFunction();
+    });
+  }
+  
+function getParameterByName(name) {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(name);
+}
+
+
+function showOverlay() {
+  document.getElementById('overlay').style.display = 'flex';
+  updateButton.disabled = true;
+}
+
+function hideOverlay() {
+  document.getElementById('overlay').style.display = 'none';
+  updateButton.disabled = false;
+}
+
+function emptyFunction() {
+
+	showOverlay();
+  // Loop through the selectedImages array and modify image names
+  modifiedImageNames = selectedImages.map(imageName => {
+    return imageName.replace(".jpg", "");
+  });
+
+// Sort the modifiedImageNames array in ascending order as numbers
+	modifiedImageNames.sort((a, b) => parseInt(a) - parseInt(b));
+
+  // Convert the sorted array to a string and log it
+	sortedImageNamesString = modifiedImageNames.join(","); 
+	const today = new Date();
+	const date = today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+	const time = today.getHours() + ":" + today.getMinutes() + ":" + today.getSeconds();
+	const dateTime = date+' '+time;
+	const formData = new URLSearchParams();
+  
+formData.append("Id", id);
+formData.append("LastUpdate", dateTime);
+formData.append("RosterString", sortedImageNamesString);
+
+fetch("https://script.google.com/macros/s/AKfycbwVvItaWYQjjLhlZOL5Azvd25_SqVrFhyKgzOUdr5csAuKHmQEPU6ZVjaw3GE-22qlYsA/exec",
+{
+  method: "POST",
+  body: formData
+}
+)
+.then((res) => res.json())
+.then((data) => {
+  console.log(data + " and: " + sortedImageNamesString);
+  const temp = new URLSearchParams(window.location.search);
+  temp.set("roster",sortedImageNamesString);
+  hideOverlay(); // Hide spinner after success
+  window.location.search = temp.toString();
+  
+
+})
+.catch((error) => {
+  hideOverlay(); // Hide spinner after error
+  console.log(error);
+});
+}
+
+  init();
+</script>
+</body>
+</html>
